@@ -1,0 +1,498 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ==========================================
+// 1. AUTHENTICATION & ACCESS CONTROL
+// ==========================================
+
+model User {
+  id              Int           @id @default(autoincrement())
+  uuid            String        @unique @default(uuid())
+  name            String
+  email           String        @unique
+  phone           String?
+  passwordHash    String        @map("password_hash")
+  avatar          String?
+  status          UserStatus    @default(ACTIVE)
+  emailVerified   Boolean       @default(false) @map("email_verified")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+  deletedAt       DateTime?     @map("deleted_at")
+
+  // Relationships
+  userRoles       UserRole[]
+  blogs           Blog[]
+  activityLogs    ActivityLog[]
+  loginLogs       LoginLog[]
+
+  @@index([email])
+  @@index([uuid])
+  @@map("users")
+}
+
+enum UserStatus {
+  ACTIVE
+  BLOCKED
+  PENDING
+}
+
+model Role {
+  id              Int               @id @default(autoincrement())
+  name            String            @unique // Super Admin, Admin, Editor, Marketing, Content Writer, Developer, Client
+  description     String?
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  deletedAt       DateTime?         @map("deleted_at")
+
+  // Relationships
+  userRoles       UserRole[]
+  rolePermissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id              Int               @id @default(autoincrement())
+  name            String            @unique // read, write, delete, publish, admin_settings, etc.
+  description     String?
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  // Relationships
+  rolePermissions RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  id              Int         @id @default(autoincrement())
+  roleId          Int         @map("role_id")
+  permissionId    Int         @map("permission_id")
+  createdAt       DateTime    @default(now()) @map("created_at")
+
+  // Relationships
+  role            Role        @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission      Permission  @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  id              Int       @id @default(autoincrement())
+  userId          Int       @map("user_id")
+  roleId          Int       @map("role_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  // Relationships
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role            Role      @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@map("user_roles")
+}
+
+
+// ==========================================
+// 2. PORTFOLIO & PROJECTS
+// ==========================================
+
+model Project {
+  id              Int                 @id @default(autoincrement())
+  uuid            String              @unique @default(uuid())
+  title           String
+  slug            String              @unique
+  client          String
+  industry        String
+  thumbnail       String
+  cover           String
+  challenge       String              @db.Text
+  solution        String              @db.Text
+  result          String              @db.Text
+  testimonial     String?             @db.Text
+  url             String?
+  status          ProjectStatus       @default(DRAFT)
+  featured        Boolean             @default(false)
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+  deletedAt       DateTime?           @map("deleted_at")
+  publishedAt     DateTime?           @map("published_at")
+
+  // Relationships
+  categories      ProjectCategory[]
+  gallery         ProjectGallery[]
+  technologies    ProjectTechnology[]
+
+  @@index([slug])
+  @@index([status])
+  @@map("projects")
+}
+
+enum ProjectStatus {
+  DRAFT
+  PUBLISHED
+}
+
+model ProjectCategory {
+  id              Int       @id @default(autoincrement())
+  name            String    @unique
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  // Relationships
+  projects        Project[]
+
+  @@map("project_categories")
+}
+
+model ProjectGallery {
+  id              Int       @id @default(autoincrement())
+  projectId       Int       @map("project_id")
+  imageUrl        String    @map("image_url")
+  caption         String?
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  // Relationships
+  project         Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("project_galleries")
+}
+
+model Technology {
+  id              Int                 @id @default(autoincrement())
+  name            String              @unique
+  logo            String?
+  createdAt       DateTime            @default(now()) @map("created_at")
+
+  // Relationships
+  projectTech     ProjectTechnology[]
+
+  @@map("technologies")
+}
+
+model ProjectTechnology {
+  id              Int         @id @default(autoincrement())
+  projectId       Int         @map("project_id")
+  technologyId    Int         @map("technology_id")
+
+  // Relationships
+  project         Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  technology      Technology  @relation(fields: [technologyId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, technologyId])
+  @@map("project_technologies")
+}
+
+
+// ==========================================
+// 3. SERVICES & PRICING
+// ==========================================
+
+model Service {
+  id              Int         @id @default(autoincrement())
+  title           String
+  icon            String      // Lucide icon key name
+  description     String      @db.Text
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+  deletedAt       DateTime?   @map("deleted_at")
+
+  // Relationships
+  pricings        Pricing[]
+
+  @@map("services")
+}
+
+model Pricing {
+  id              Int       @id @default(autoincrement())
+  serviceId       Int       @map("service_id")
+  name            String    // Basic, Standard, Enterprise
+  price           String    // Pricing string, e.g., "7.500.000"
+  features        String    @db.Text // JSON list of features
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  // Relationships
+  service         Service   @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@map("pricings")
+}
+
+
+// ==========================================
+// 4. CLIENTS & TESTIMONIALS
+// ==========================================
+
+model Client {
+  id              Int       @id @default(autoincrement())
+  name            String
+  logo            String
+  website         String?
+  industry        String?
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@map("clients")
+}
+
+model Testimonial {
+  id              Int       @id @default(autoincrement())
+  name            String
+  photo           String?
+  rating          Int       @default(5)
+  company         String
+  position        String
+  comment         String    @db.Text
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@map("testimonials")
+}
+
+
+// ==========================================
+// 5. BLOG ENGINE
+// ==========================================
+
+model BlogCategory {
+  id              Int       @id @default(autoincrement())
+  name            String    @unique
+  slug            String    @unique
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  // Relationships
+  blogs           Blog[]
+
+  @@map("blog_categories")
+}
+
+model Blog {
+  id              Int           @id @default(autoincrement())
+  uuid            String        @unique @default(uuid())
+  title           String
+  slug            String        @unique
+  content         String        @db.LongText
+  summary         String        @db.Text
+  thumbnail       String
+  status          BlogStatus    @default(DRAFT)
+  readingTime     Int           @default(5) @map("reading_time")
+  authorId        Int           @map("author_id")
+  categoryId      Int           @map("category_id")
+  seoTitle        String?       @map("seo_title")
+  seoDescription  String?       @db.Text @map("seo_description")
+  seoKeywords     String?       @map("seo_keywords")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+  deletedAt       DateTime?     @map("deleted_at")
+  publishedAt     DateTime?     @map("published_at")
+
+  // Relationships
+  author          User          @relation(fields: [authorId], references: [id])
+  category        BlogCategory  @relation(fields: [categoryId], references: [id])
+  comments        BlogComment[]
+  tags            BlogTag[]
+
+  @@index([slug])
+  @@index([status])
+  @@map("blogs")
+}
+
+enum BlogStatus {
+  DRAFT
+  PUBLISHED
+  SCHEDULED
+}
+
+model BlogTag {
+  id              Int       @id @default(autoincrement())
+  name            String    @unique
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  // Relationships
+  blogs           Blog[]
+
+  @@map("blog_tags")
+}
+
+model BlogComment {
+  id              Int       @id @default(autoincrement())
+  blogId          Int       @map("blog_id")
+  name            String
+  email           String
+  comment         String    @db.Text
+  status          CommentStatus @default(PENDING)
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  // Relationships
+  blog            Blog      @relation(fields: [blogId], references: [id], onDelete: Cascade)
+
+  @@map("blog_comments")
+}
+
+enum CommentStatus {
+  PENDING
+  APPROVED
+  SPAM
+}
+
+
+// ==========================================
+// 6. UTILITIES, CRM, SETTINGS & LOGGING
+// ==========================================
+
+model FAQ {
+  id              Int       @id @default(autoincrement())
+  question        String    @db.Text
+  answer          String    @db.Text
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@map("faqs")
+}
+
+model Media {
+  id              Int       @id @default(autoincrement())
+  name            String
+  type            String    // image, video, pdf, zip, etc.
+  size            String
+  url             String
+  folder          String    @default("General")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  @@map("media")
+}
+
+model Newsletter {
+  id              Int       @id @default(autoincrement())
+  email           String    @unique
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  @@map("newsletter")
+}
+
+model Consultation {
+  id                 Int       @id @default(autoincrement())
+  clientName         String    @map("client_name")
+  companyType        String    @map("company_type")
+  projectType        String    @map("project_type")
+  designStyle        String    @map("design_style")
+  features           String    @db.Text // JSON array of requested features
+  urgency            String
+  status             String    @default("Approved") // Approved, Pending, Rejected
+  estimatedCostRange String    @map("estimated_cost_range")
+  estimatedDuration  String    @map("estimated_duration")
+  resultData         String    @db.LongText @map("result_data") // Complete Gemini/Simulation response JSON
+  createdAt          DateTime  @default(now()) @map("created_at")
+
+  @@map("consultations")
+}
+
+model Message {
+  id              Int       @id @default(autoincrement())
+  name            String
+  email           String
+  company         String?
+  industry        String?
+  message         String    @db.Text
+  status          String    @default("Unread") // Unread, Read, Replied
+  replyText       String?   @db.Text @map("reply_text")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  @@map("messages")
+}
+
+model Settings {
+  id              Int       @id @default(1)
+  websiteName     String    @default("Clinik Coding") @map("website_name")
+  logo            String    @default("Terminal")
+  favicon         String    @default("⚡")
+  contactEmail    String    @default("contact@clinikcoding.com") @map("contact_email")
+  contactPhone    String    @default("+62 812-3456-7890") @map("contact_phone")
+  whatsApp        String    @default("+6281234567890") @map("whatsapp")
+  googleMaps      String    @db.Text @map("google_maps")
+  analyticsId     String?   @map("analytics_id")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@map("settings")
+}
+
+model SEO {
+  id              Int       @id @default(1)
+  title           String    @db.Text
+  description     String    @db.Text
+  keywords        String    @db.Text
+  ogImage         String    @map("og_image")
+  twitterCard     String    @map("twitter_card")
+  schemaMarkup    String    @db.LongText @map("schema_markup")
+  canonical       String
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@map("seo")
+}
+
+model SocialMedia {
+  id              Int       @id @default(autoincrement())
+  platform        String    // Facebook, Instagram, LinkedIn, GitHub, etc.
+  url             String
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  @@map("social_media")
+}
+
+model Analytics {
+  id              Int       @id @default(autoincrement())
+  metric          String    // page_views, unique_visitors, bounce_rate, session_duration
+  value           Float
+  dimension       String?   // page path or country
+  recordedAt      DateTime  @default(now()) @map("recorded_at")
+
+  @@map("analytics")
+}
+
+model ActivityLog {
+  id              Int       @id @default(autoincrement())
+  userId          Int?      @map("user_id")
+  action          String
+  details         String?   @db.Text
+  ipAddress       String    @map("ip_address")
+  timestamp       DateTime  @default(now())
+
+  // Relationships
+  user            User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("activity_logs")
+}
+
+model LoginLog {
+  id              Int       @id @default(autoincrement())
+  userId          Int       @map("user_id")
+  status          String    // SUCCESS, FAILED
+  ipAddress       String    @map("ip_address")
+  userAgent       String?   @map("user_agent")
+  timestamp       DateTime  @default(now())
+
+  // Relationships
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("login_logs")
+}
+
+model Backup {
+  id              Int       @id @default(autoincrement())
+  name            String
+  size            String
+  type            String    // Database, Files, Complete
+  url             String?
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  @@map("backups")
+}
